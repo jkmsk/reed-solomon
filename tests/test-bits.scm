@@ -19,6 +19,18 @@
   '((1 0 0))
   (split-into 3 '(1)))
 
+(test-equal "group-into: no padding needed at either level"
+  '(((1 2) (3 4)) ((5 6) (7 8)))
+  (group-into 2 2 '(1 2 3 4 5 6 7 8)))
+
+(test-equal "group-into: symbol-level padding needed"
+  '(((1 2) (3 4)) ((5 0) (0 0)))
+  (group-into 2 2 '(1 2 3 4 5)))
+
+(test-equal "group-into: empty list"
+  '()
+  (group-into 2 2 '()))
+
 (test-equal "flatten: list of lists"
   '(1 2 3 4 5 6)
   (flatten '((1 2) (3) (4 5 6))))
