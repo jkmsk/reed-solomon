@@ -1,0 +1,8 @@
+#!/bin/sh
+
+here="$(cd "$(dirname "$0")" && pwd)"
+
+export GUILE_LOAD_PATH="$here${GUILE_LOAD_PATH:+:$GUILE_LOAD_PATH}"
+export GUILE_LOAD_COMPILED_PATH="$here${GUILE_LOAD_COMPILED_PATH:+:$GUILE_LOAD_COMPILED_PATH}"
+
+exec "$@"

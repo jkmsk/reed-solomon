@@ -1,0 +1,11 @@
+#!/bin/sh
+
+here="$(cd "$(dirname "$0")" && pwd)"
+status=0
+
+for f in "$here"/tests/*.scm; do
+  echo "== $f =="
+  "$here/pre-inst-env" guile -L "$here" "$f" || status=1
+done
+
+exit $status
