@@ -47,4 +47,20 @@
   '(1 2 3 4 5 0)
   (flatten (split-into 3 '(1 2 3 4 5))))
 
+(test-equal "flatten2: list of lists of lists"
+  '(1 2 3 4 5 6 7 8)
+  (flatten2 '(((1 2) (3 4)) ((5 6) (7 8)))))
+
+(test-equal "flatten2: with empty sublists at every level"
+  '(1 2)
+  (flatten2 '(() ((1)) (() (2)) ())))
+
+(test-equal "flatten2: empty list"
+  '()
+  (flatten2 '()))
+
+(test-equal "flatten2 after group-into recovers the padded stream"
+  '(1 2 3 4 5 0 0 0)
+  (flatten2 (group-into 2 2 '(1 2 3 4 5))))
+
 (test-end "bits")

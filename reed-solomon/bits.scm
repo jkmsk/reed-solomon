@@ -7,7 +7,7 @@
 
 (define-module (reed-solomon bits)
   #:use-module (srfi srfi-1)
-  #:export (split-into group-into flatten))
+  #:export (split-into group-into flatten flatten2))
 
 ;; split-into/pad : pad size lst -> list of lists
 ;; Splits lst into consecutive chunks of length size, padding the last
@@ -38,5 +38,11 @@
   (let ((symbols (split-into symbol-size lst)))
     (split-into/pad (make-list symbol-size 0) group-size symbols)))
 
-(define (flatten lst)
-  (error "flatten: to implement"))
+;; flatten : list of lists -> list
+;; Removes one level of nesting, concatenating the sublists into one.
+(define (flatten lst) (apply append lst))
+
+;; flatten2 : list of lists of lists -> list
+;; Removes two levels of nesting, e.g. the output of group-into.
+(define (flatten2 lst) (flatten (flatten lst)))
+
