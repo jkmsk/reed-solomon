@@ -7,7 +7,7 @@
 
 (define-module (reed-solomon bits)
   #:use-module (srfi srfi-1)
-  #:export (split-into group-into flatten flatten2))
+  #:export (split-into group-into flatten flatten2 hamming-distance))
 
 ;; split-into/pad : pad size lst -> list of lists
 ;; Splits lst into consecutive chunks of length size, padding the last
@@ -46,3 +46,8 @@
 ;; Removes two levels of nesting, e.g. the output of group-into.
 (define (flatten2 lst) (flatten (flatten lst)))
 
+;; hamming-distance : lst1 lst2 -> integer
+;; Counts the positions at which lst1 and lst2 differ. If lst1 and lst2
+;; have different lengths, comparison stops at the end of the shorter one.
+(define (hamming-distance lst1 lst2)
+  (fold (lambda (a b d) (if (equal? a b) d (+ d 1))) 0 lst1 lst2))

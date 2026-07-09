@@ -63,4 +63,28 @@
   '(1 2 3 4 5 0 0 0)
   (flatten2 (group-into 2 2 '(1 2 3 4 5))))
 
+(test-equal "hamming-distance: identical lists"
+  0
+  (hamming-distance '(1 2 3 4) '(1 2 3 4)))
+
+(test-equal "hamming-distance: all positions differ"
+  4
+  (hamming-distance '(1 2 3 4) '(0 0 0 0)))
+
+(test-equal "hamming-distance: some positions differ"
+  2
+  (hamming-distance '(1 2 3 4) '(1 0 3 0)))
+
+(test-equal "hamming-distance: both empty"
+  0
+  (hamming-distance '() '()))
+
+(test-equal "hamming-distance: stops at the shorter list"
+  1
+  (hamming-distance '(1 2 3) '(1 0)))
+
+(test-equal "hamming-distance: nested elements compared with equal?"
+  1
+  (hamming-distance '((1 2) (3 4)) '((1 2) (9 9))))
+
 (test-end "bits")
