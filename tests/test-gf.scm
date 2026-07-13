@@ -66,6 +66,30 @@
 (test-equal "exp: GF(256) alpha^256 wraps around to alpha^1"
   2 (gf-exp (make-gf #b100011101) 256))
 
+(test-equal "log: GF(16)  log(1) = 0 (alpha^0 = 1)"
+  0 (gf-log (make-gf #b10011) 1))
+
+(test-equal "log: GF(16)  log(2) = 1 (alpha^1 = X = 2)"
+  1 (gf-log (make-gf #b10011) 2))
+
+(test-equal "log: GF(16)  log(3) = 4 (alpha^4 = X+1 = 3)"
+  4 (gf-log (make-gf #b10011) 3))
+
+(test-equal "log: GF(256) log(1) = 0 (alpha^0 = 1)"
+  0 (gf-log (make-gf #b100011101) 1))
+
+(test-equal "log: GF(256) log(2) = 1 (alpha^1 = X = 2)"
+  1 (gf-log (make-gf #b100011101) 2))
+
+(test-equal "log: GF(256) log(29) = 8 (alpha^8 = 29)"
+  8 (gf-log (make-gf #b100011101) 29))
+
+(test-equal "log is the inverse of exp"
+  8 (gf-log (make-gf #b100011101) (gf-exp (make-gf #b100011101) 8)))
+
+(test-error "log(0) is undefined and raises an error"
+  #t (gf-log (make-gf #b100011101) 0))
+
 (test-error "an unknown message raises an error"
   #t ((make-gf #b100011101) 'unknown-op))
 
