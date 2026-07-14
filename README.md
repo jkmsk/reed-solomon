@@ -1,4 +1,4 @@
-# reed-solomon
+# A Reed-Solomon Scheme implementation
 
 A Reed-Solomon implementation in Scheme for learning purposes.
 
