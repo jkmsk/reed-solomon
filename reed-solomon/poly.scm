@@ -10,7 +10,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
-  #:export (poly-add poly-scale poly-mul poly-divmod poly-eval))
+  #:export (poly-add poly-scale poly-mul poly-divmod poly-eval poly-degree))
 
 ;; poly-add : gf u v -> u + v
 ;; The sum of two polynomials over Fq normalized.
