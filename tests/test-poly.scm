@@ -67,6 +67,9 @@
   (poly-mul g (list #b1 #b10 #b11) (list #b100 #b101))
   (poly-mul g (list #b100 #b101) (list #b1 #b10 #b11)))
 
+(test-equal "mul: empty v -> 0-poly"
+  (list #b0) (poly-mul g (list #b1 #b10) '()))
+
 (define (divmod->list gf u v)
   (call-with-values (lambda () (poly-divmod gf u v)) list))
 
@@ -91,5 +94,27 @@
   (call-with-values
       (lambda () (poly-divmod g (list #b101 #b1101 #b110 #b1111) (list #b100 #b101)))
     (lambda (q r) (poly-add g (poly-mul g q (list #b100 #b101)) r))))
+
+(test-equal "eval: 0-poly evaluates to #b0 (any X)"
+  #b0 (poly-eval g (list #b0) #b11))
+
+(test-equal "eval: constant polynomial evaluates to itself (any X)"
+  #b101 (poly-eval g (list #b101) #b11))
+
+(test-equal "eval: polynomial evaluates to its constant term for X=0"
+  #b1 (poly-eval g (list #b1 #b10 #b11) #b0))
+
+(test-equal "eval: #b1+#b10 X+#b11 X² at X=#b100"
+  57 (poly-eval g (list #b1 #b10 #b11) #b100))
+
+(test-equal "eval: matches direct sum of c_i * x^i"
+  (let loop ((cs (list #b1 #b10 #b11)) (xp #b1) (acc #b0))
+    (if (null? cs)
+        acc
+        (loop (cdr cs) (gf-mul g xp #b100) (gf-add g acc (gf-mul g (car cs) xp)))))
+  (poly-eval g (list #b1 #b10 #b11) #b100))
+
+(test-equal "eval: empty polynomial evaluates to 0 (any X)"
+  #b0 (poly-eval g '() #b11))
 
 (test-end "poly")

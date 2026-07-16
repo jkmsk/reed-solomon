@@ -10,7 +10,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
-  #:export (poly-add poly-scale poly-mul poly-divmod))
+  #:export (poly-add poly-scale poly-mul poly-divmod poly-eval))
 
 ;; poly-add : gf u v -> u + v
 ;; The sum of two polynomials over Fq normalized.
@@ -73,3 +73,12 @@
             (receive (q r) (div next-u)
               (values (poly-add gf q mono-shifted) r))))))
   (div u))
+
+;; poly-eval : gf u x -> u(x), by Horner's method: walk the
+;; coefficients from highest to lowest degree, folding acc = acc*x + c
+;; at each step (one gf-mul and one gf-add per coefficient).
+(define (poly-eval gf u x)
+  (let loop ((cs (reverse u)) (acc 0))
+    (if (null? cs)
+        acc
+        (loop (cdr cs) (gf-add gf (gf-mul gf acc x) (car cs))))))
