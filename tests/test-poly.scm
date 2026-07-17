@@ -1,4 +1,5 @@
 (use-modules (srfi srfi-64)
+             (ice-9 match)
              (reed-solomon gf)
              (reed-solomon poly))
 
@@ -6,115 +7,165 @@
 
 (define g (make-gf #b100011101))
 
-(test-equal "add: both empty -> canonical 0-poly"
-  (list #b0) (poly-add g '() '()))
+;; list of (args result), covering shift by one and shift by i.
+(define shift-cases
+  (list (list (list (list #b1 #b10 #b11))
+              (list #b0 #b1 #b10 #b11))
+        (list (list '())
+              (list #b0))
+        (list (list (list #b0))
+              (list #b0))
+        (list (list 0 '())
+              (list #b0))
+        (list (list 0 (list #b0))
+              (list #b0))
+        (list (list 1 '())
+              (list #b0))
+        (list (list 1 (list #b0))
+              (list #b0))
+        (list (list 2 '())
+              (list #b0))
+        (list (list 2 (list #b0))
+              (list #b0))
+        (list (list 0 (list #b1 #b10 #b11))
+              (list #b1 #b10 #b11))
+        (list (list 3 (list #b1 #b10 #b11))
+              (list #b0 #b0 #b0 #b1 #b10 #b11))
+        (list (list 1 (list #b1 #b10 #b11))
+              (list #b0 #b1 #b10 #b11))))
 
-(test-equal "add: identity element (u + 0-poly = u)"
-  (list #b1 #b10 #b11) (poly-add g (list #b1 #b10 #b11) '()))
+(for-each
+ (match-lambda
+   ((args result)
+    (test-equal (simple-format #f "shift: (poly-shift ~a) = ~a" args result)
+      result (apply poly-shift args))))
+ shift-cases)
 
-(test-equal "add: identity element, other side (0-poly + u = u)"
-  (list #b1 #b10 #b11) (poly-add g '() (list #b1 #b10 #b11)))
+;; list of (u v sum product), covering empty, zero, identity,
+;; self, mixed-length and general polynomials.
+(define poly-cases
+  (list (list '() '()
+              (list #b0) (list #b0))
+        (list '() (list #b100 #b101)
+              (list #b100 #b101) (list #b0))
+        (list (list #b100 #b101) '()
+              (list #b100 #b101) (list #b0))
+        (list (list #b0) (list #b0)
+              (list #b0) (list #b0))
+        (list (list #b0) (list #b1 #b10 #b11)
+              (list #b1 #b10 #b11) (list #b0))
+        (list (list #b1) (list #b100 #b101)
+              (list #b101 #b101) (list #b100 #b101))
+        (list (list #b1 #b10 #b11) (list #b1 #b10 #b11)
+              (list #b0) (list #b1 #b0 #b100 #b0 #b101))
+        (list (list #b0 #b0 #b11) (list #b100 #b101)
+              (list #b100 #b101 #b11) (list #b0 #b0 #b1100 #b1111))
+        (list (list #b1 #b10 #b11) (list #b100 #b101)
+              (list #b101 #b111 #b11) (list #b100 #b1101 #b110 #b1111))
+        (list (list #b1) (list #b10 #b11 #b100)
+              (list #b11 #b11 #b100) (list #b10 #b11 #b100))))
 
-(test-equal "add: involution (u + u = 0-poly)"
-  (list #b0) (poly-add g (list #b1 #b10 #b11) (list #b1 #b10 #b11)))
+(for-each
+ (match-lambda
+   ((u v sum product)
+    (test-equal (simple-format #f "add: ~a + ~a = ~a" u v sum)
+      sum (poly-add g u v))
+    (test-equal (simple-format #f "mul: ~a * ~a = ~a" u v product)
+      product (poly-mul g u v))
+    (test-equal (simple-format #f "add commutative: ~a + ~a = ~a + ~a" u v v u)
+      (poly-add g u v) (poly-add g v u))
+    (test-equal (simple-format #f "mul commutative: ~a * ~a = ~a * ~a" u v v u)
+      (poly-mul g u v) (poly-mul g v u))))
+ poly-cases)
 
-(test-equal "add: commutative"
-  (poly-add g (list #b1 #b10 #b11) (list #b100 #b101))
-  (poly-add g (list #b100 #b101) (list #b1 #b10 #b11)))
+;; list of (scalar u result), covering the absorbing scalar,
+;; the identity scalar, an empty polynomial, and the combination
+;; of both, a general case, and a non-zero scalar times the zero
+;; polynomial.
+(define scale-cases
+  (list (list #b0 (list #b1 #b10 #b11)
+              (list #b0))
+        (list #b1 (list #b1 #b10 #b11)
+              (list #b1 #b10 #b11))
+        (list #b11 '()
+              '())
+        (list #b0 '()
+              (list #b0))
+        (list #b11 (list #b1 #b10 #b11)
+              (list #b11 #b110 #b101))
+        (list #b11 (list #b0)
+              (list #b0))))
 
-(test-equal "add: same length"
-  (list #b101 #b111 #b11)
-  (poly-add g (list #b1 #b10 #b11) (list #b100 #b101)))
-
-(test-equal "add: shorter first operand is implicitly zero-padded"
-  (list #b11 #b11 #b100)
-  (poly-add g (list #b1) (list #b10 #b11 #b100)))
-
-(test-equal "add: shorter second operand is implicitly zero-padded"
-  (list #b11 #b11 #b100)
-  (poly-add g (list #b10 #b11 #b100) (list #b1)))
-
-(test-equal "scale: empty polynomial stays empty"
-  '() (poly-scale g #b11 '()))
-
-(test-equal "scale: absorbing scalar (#b0 * u = 0-poly)"
-  (list #b0) (poly-scale g #b0 (list #b1 #b10 #b11)))
-
-(test-equal "scale: identity scalar (#b1 * u = u)"
-  (list #b1 #b10 #b11) (poly-scale g #b1 (list #b1 #b10 #b11)))
-
-(test-equal "scale: every coefficient multiplied by the scalar"
-  (list #b11 #b110 #b101) (poly-scale g #b11 (list #b1 #b10 #b11)))
-
-(test-equal "mul: empty u -> empty"
-  '() (poly-mul g '() (list #b100 #b101)))
-
-(test-equal "mul: identity element (#b1 * v = v)"
-  (list #b100 #b101) (poly-mul g (list #b1) (list #b100 #b101)))
-
-(test-equal "mul: absorbing element (#b0 * v = 0-poly)"
-  (list #b0) (poly-mul g (list #b0) (list #b100 #b101)))
-
-(test-equal "mul: zero head coefficients are skipped correctly (#b11 X² * v)"
-  (list #b0 #b0 #b1100 #b1111)
-  (poly-mul g (list #b0 #b0 #b11) (list #b100 #b101)))
-
-(test-equal "mul: (#b1+#b10 X+#b11 X²) * (#b100+#b101 X) = #b100+#b1101 X+#b110 X²+#b1111 X³"
-  (list #b100 #b1101 #b110 #b1111)
-  (poly-mul g (list #b1 #b10 #b11) (list #b100 #b101)))
-
-(test-equal "mul: commutative"
-  (poly-mul g (list #b1 #b10 #b11) (list #b100 #b101))
-  (poly-mul g (list #b100 #b101) (list #b1 #b10 #b11)))
-
-(test-equal "mul: empty v -> 0-poly"
-  (list #b0) (poly-mul g (list #b1 #b10) '()))
+(for-each
+ (match-lambda
+   ((scalar u result)
+    (test-equal (simple-format #f "scale: ~a * ~a = ~a" scalar u result)
+      result (poly-scale g scalar u))))
+ scale-cases)
 
 (define (divmod->list gf u v)
   (call-with-values (lambda () (poly-divmod gf u v)) list))
 
-(test-equal "divmod: deg(u) < deg(v) -> quotient 0-poly, remainder u"
-  (list (list #b0) (list #b1 #b10))
-  (divmod->list g (list #b1 #b10) (list #b1 #b10 #b11)))
+;; list of (u v quotient remainder), covering deg(u) < deg(v), exact
+;; division at the same degree, exact division in the general case, a
+;; non-zero remainder, and non-canonical u/v (superfluous high-order
+;; zero coefficients), which poly-divmod must normalize internally.
+(define divmod-cases
+  (list (list (list #b1 #b10) (list #b1 #b10 #b11)
+              (list #b0) (list #b1 #b10))
+        (list (list #b1 #b10) (list #b1 #b10)
+              (list #b1) (list #b0))
+        (list (list #b100 #b1101 #b110 #b1111) (list #b100 #b101)
+              (list #b1 #b10 #b11) (list #b0))
+        (list (list #b101 #b1101 #b110 #b1111) (list #b100 #b101)
+              (list #b1 #b10 #b11) (list #b1))
+        (list (list #b100 #b1101 #b110 #b1111) (list #b100 #b101 #b0)
+              (list #b1 #b10 #b11) (list #b0))
+        (list (list #b100 #b1101 #b110 #b1111 #b0) (list #b100 #b101)
+              (list #b1 #b10 #b11) (list #b0))))
 
-(test-equal "divmod: exact division, same degree (u = v) -> quotient #b1, remainder 0-poly"
-  (list (list #b1) (list #b0))
-  (divmod->list g (list #b1 #b10) (list #b1 #b10)))
+(for-each
+ (match-lambda
+   ((u v quotient remainder)
+    (test-equal (simple-format #f "divmod: ~a / ~a = ~a, ~a" u v quotient remainder)
+      (list quotient remainder) (divmod->list g u v))
+    (test-equal (simple-format #f "divmod round-trip: q*v + r = ~a" u)
+      (poly-normalize u) (poly-add g (poly-mul g quotient v) remainder))
+    (test-equal (simple-format #f "mod: ~a mod ~a = ~a (matches divmod's remainder)" u v remainder)
+      remainder (poly-mod g u v))))
+ divmod-cases)
 
-(test-equal "divmod: exact division ((#b1+#b10 X+#b11 X²)*(#b100+#b101 X)) / (#b100+#b101 X) -> quotient #b1+#b10 X+#b11 X², remainder 0-poly"
-  (list (list #b1 #b10 #b11) (list #b0))
-  (divmod->list g (list #b100 #b1101 #b110 #b1111) (list #b100 #b101)))
+(test-error "divmod: dividing by the zero polynomial raises an error"
+  #t (poly-divmod g (list #b1 #b10 #b11) (list #b0)))
 
-(test-equal "divmod: non-zero remainder"
-  (list (list #b1 #b10 #b11) (list #b1))
-  (divmod->list g (list #b101 #b1101 #b110 #b1111) (list #b100 #b101)))
+(test-error "mod: dividing by the zero polynomial raises an error"
+  #t (poly-mod g (list #b1 #b10 #b11) (list #b0)))
 
-(test-equal "divmod: round-trip (q*p + r = u)"
-  (list #b101 #b1101 #b110 #b1111)
-  (call-with-values
-      (lambda () (poly-divmod g (list #b101 #b1101 #b110 #b1111) (list #b100 #b101)))
-    (lambda (q r) (poly-add g (poly-mul g q (list #b100 #b101)) r))))
-
-(test-equal "eval: 0-poly evaluates to #b0 (any X)"
-  #b0 (poly-eval g (list #b0) #b11))
-
-(test-equal "eval: constant polynomial evaluates to itself (any X)"
-  #b101 (poly-eval g (list #b101) #b11))
-
-(test-equal "eval: polynomial evaluates to its constant term for X=0"
-  #b1 (poly-eval g (list #b1 #b10 #b11) #b0))
-
-(test-equal "eval: #b1+#b10 X+#b11 X² at X=#b100"
-  57 (poly-eval g (list #b1 #b10 #b11) #b100))
-
-(test-equal "eval: matches direct sum of c_i * x^i"
-  (let loop ((cs (list #b1 #b10 #b11)) (xp #b1) (acc #b0))
+;; direct-eval : reference implementation (direct sum of c_i *
+;; point^i), used to independently cross-check poly-eval
+(define (direct-eval u point)
+  (let loop ((cs u) (point-i #b1) (acc #b0))
     (if (null? cs)
         acc
-        (loop (cdr cs) (gf-mul g xp #b100) (gf-add g acc (gf-mul g (car cs) xp)))))
-  (poly-eval g (list #b1 #b10 #b11) #b100))
+        (loop (cdr cs) (gf-mul g point-i point) (gf-add g acc (gf-mul g (car cs) point-i))))))
 
-(test-equal "eval: empty polynomial evaluates to 0 (any X)"
-  #b0 (poly-eval g '() #b11))
+;; list of (u point result), covering the 0-poly, a constant
+;; polynomial, evaluation at 0, a general case, and an empty
+;; polynomial.
+(define eval-cases
+  (list (list (list #b0) #b11 #b0)
+        (list (list #b101) #b11 #b101)
+        (list (list #b1 #b10 #b11) #b0 #b1)
+        (list (list #b1 #b10 #b11) #b100 #b111001)
+        (list '() #b11 #b0)))
+
+(for-each
+ (match-lambda
+   ((u point result)
+    (test-equal (simple-format #f "eval: ~a at point=~a = ~a" u point result)
+      result (poly-eval g u point))
+    (test-equal (simple-format #f "eval matches direct sum: ~a at point=~a" u point)
+      (direct-eval u point) (poly-eval g u point))))
+ eval-cases)
 
 (test-end "poly")
