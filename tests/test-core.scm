@@ -53,4 +53,22 @@
         msg (list-tail codeword (- 15 k))))))
  encode-cases)
 
+;; list of (n k received expected-syndromes), covering a clean
+;; codeword for two different (n,k) and a corrupted codeword
+(define syndrome-cases
+  (list (list 15 11 (encode g 15 msg)
+              (list #b0 #b0 #b0 #b0))
+        (list 15 13
+              (list #b1 #b101 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101)
+              (list #b0 #b0))
+        (list 15 11 (poly-add g (encode g 15 msg) (list #b1))
+              (list #b1 #b1 #b1 #b1))))
+
+(for-each
+ (match-lambda
+   ((n k received expected)
+    (test-equal (simple-format #f "syndromes: GF(16) RS(~a,~a), received=~a" n k received)
+      expected (syndromes g n k received))))
+ syndrome-cases)
+
 (test-end "core")

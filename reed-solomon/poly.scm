@@ -91,9 +91,8 @@ field GF (deg(r) < deg(V))."
 (define (poly-eval gf u point)
   "Evaluate the polynomial U at POINT, over the field GF, using
 Horner's method: U(X) = c0 + X*(c1 + X*(c2 + ... + X*ck)), so rather
-than computing powers of POINT separately, walk the coefficients
-from highest to lowest degree."
-  (let loop ((cs (reverse u)) (acc 0))
-    (if (null? cs)
-        acc
-        (loop (cdr cs) (gf-add gf (gf-mul gf acc point) (car cs))))))
+than computing powers of POINT separately, recurse on U's structure
+(head c, tail cs) as U(POINT) = c + POINT*cs(POINT)."
+  (match u
+    (() 0)
+    ((c . cs) (gf-add gf c (gf-mul gf point (poly-eval gf cs point))))))
