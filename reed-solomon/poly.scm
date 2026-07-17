@@ -7,6 +7,7 @@
 ;; --------------------------------------------------------------------------
 
 (define-module (reed-solomon poly)
+  #:use-module (srfi srfi-1)
   #:use-module (ice-9 match)
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
@@ -49,11 +50,11 @@ With the two-argument form, return X^I * U, shifted by I positions."
 
 (define (poly-mul gf u v)
   "Return the product of the polynomials U and V over the field GF.
-U = c + X*cs (head c, tail cs), so U*V = c*V + X*(cs*V): scale V
-by the head of U, and add the recursive product shifted by one."
-  (match u
-    (() (list 0))
-    ((c . cs) (poly-add gf (poly-scale gf c v) (poly-shift (poly-mul gf cs v))))))
+U = c + X*cs (head c, tail cs), so U*V = c*V + X*(cs*V): fold U from
+the right, combining each coefficient C with the accumulated product
+ACC of the higher-degree coefficients as C*V + X*ACC (scale V by C,
+and shift ACC up by one)."
+  (fold-right (lambda (c acc) (poly-add gf (poly-scale gf c v) (poly-shift acc))) (list 0) u))
 
 (define (poly-degree u)
   "Return the degree of the polynomial U, assuming U is in canonical form."
@@ -91,8 +92,7 @@ field GF (deg(r) < deg(V))."
 (define (poly-eval gf u point)
   "Evaluate the polynomial U at POINT, over the field GF, using
 Horner's method: U(X) = c0 + X*(c1 + X*(c2 + ... + X*ck)), so rather
-than computing powers of POINT separately, recurse on U's structure
-(head c, tail cs) as U(POINT) = c + POINT*cs(POINT)."
-  (match u
-    (() 0)
-    ((c . cs) (gf-add gf c (gf-mul gf point (poly-eval gf cs point))))))
+than computing powers of POINT separately, fold U from the right:
+each coefficient C combines with the accumulated evaluation ACC of
+the higher-degree coefficients as C + POINT*ACC."
+  (fold-right (lambda (c acc) (gf-add gf c (gf-mul gf point acc))) 0 u))

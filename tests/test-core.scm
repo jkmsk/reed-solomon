@@ -1,6 +1,7 @@
 (use-modules (srfi srfi-1)
              (srfi srfi-64)
              (ice-9 match)
+             (ice-9 receive)
              (reed-solomon gf)
              (reed-solomon poly)
              (reed-solomon core))
@@ -53,22 +54,42 @@
         msg (list-tail codeword (- 15 k))))))
  encode-cases)
 
-;; list of (n k received expected-syndromes), covering a clean
-;; codeword for two different (n,k) and a corrupted codeword
-(define syndrome-cases
+(define msg2 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101))
+
+;; list of (n k received expected-syndromes expected-omega
+;; expected-sigma), covering a clean codeword for two different
+;; (n,k) and three corrupted codewords.
+(define syndrome-euclid-cases
   (list (list 15 11 (encode g 15 msg)
-              (list #b0 #b0 #b0 #b0))
-        (list 15 13
-              (list #b1 #b101 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101)
-              (list #b0 #b0))
+              (list #b0 #b0 #b0 #b0) #f #f)
+        (list 15 13 (encode g 15 msg2)
+              (list #b0 #b0) #f #f)
         (list 15 11 (poly-add g (encode g 15 msg) (list #b1))
-              (list #b1 #b1 #b1 #b1))))
+              (list #b1 #b1 #b1 #b1) (list #b1) (list #b1 #b1))
+        (list 15 11 (poly-add g (encode g 15 msg) (poly-add g (list #b1) (poly-shift 3 (list #b1))))
+              (list #b1001 #b1101 #b1011 #b1110) (list #b1001) (list #b1 #b1001 #b1000))
+        (list 15 13 (poly-add g (encode g 15 msg2) (poly-shift 2 (list #b1)))
+              (list #b100 #b11) (list #b1110) (list #b1010 #b1110))))
 
 (for-each
  (match-lambda
-   ((n k received expected)
-    (test-equal (simple-format #f "syndromes: GF(16) RS(~a,~a), received=~a" n k received)
-      expected (syndromes g n k received))))
- syndrome-cases)
+   ((n k received expected-syndromes expected-omega expected-sigma)
+    (let ((syndrome (syndromes g n k received)))
+      (test-equal (simple-format #f "syndromes: GF(16) RS(~a,~a), received=~a" n k received)
+        expected-syndromes syndrome)
+      (if expected-omega
+          (receive (omega sigma) (euclid g n k syndrome)
+            (test-equal (simple-format #f "euclid: GF(16) RS(~a,~a), syndrome=~a, omega=~a" n k syndrome expected-omega)
+              expected-omega omega)
+            (test-equal (simple-format #f "euclid: GF(16) RS(~a,~a), syndrome=~a, sigma=~a" n k syndrome expected-sigma)
+              expected-sigma sigma)
+            (test-assert (simple-format #f "euclid: GF(16) RS(~a,~a), deg(sigma) <= (n-k)/2" n k)
+              (<= (poly-degree sigma) (quotient (- n k) 2)))
+            (test-equal (simple-format #f "euclid: GF(16) RS(~a,~a), key equation omega(X) = sigma(X)*S(X) mod X^(n-k)" n k)
+              (poly-normalize omega)
+              (poly-mod g (poly-mul g sigma syndrome) (poly-shift (- n k) (list 1)))))
+          (test-assert (simple-format #f "syndromes: GF(16) RS(~a,~a), clean codeword has no error" n k)
+            (every zero? syndrome))))))
+ syndrome-euclid-cases)
 
 (test-end "core")

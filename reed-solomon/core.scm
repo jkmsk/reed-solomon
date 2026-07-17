@@ -8,9 +8,10 @@
 
 (define-module (reed-solomon core)
   #:use-module (srfi srfi-1)
+  #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
   #:use-module (reed-solomon poly)
-  #:export (generator encode syndromes))
+  #:export (generator encode syndromes euclid))
 
 (define (generator gf n k)
   "Return the generator polynomial of the RS(N,K) code over the field
@@ -43,3 +44,26 @@ codeword is always a multiple of the generator polynomial, whose
 roots are alpha^1..alpha^(N-K), so every syndrome is 0 iff RECEIVED
 has no error."
   (map (lambda (i) (poly-eval gf received (gf-exp gf i))) (iota (- n k) 1)))
+
+(define (euclid gf n k syndrome)
+  "Solve the key equation for the syndrome polynomial SYNDROME (S(X)),
+over the field GF: find omega and sigma such that omega(X) =
+sigma(X)*S(X) mod X^(N-K), with deg(sigma) <= (N-K)/2, by running
+the extended Euclidean algorithm on X^(N-K) and S(X) and stopping as
+soon as the remainder's degree is small enough, rather than running
+it to completion. sigma is the Bezout coefficient of S(X) (the
+coefficient of X^(N-K) itself isn't tracked, since decoding doesn't
+need it); omega is the matching term of the same remainder sequence
+a plain Euclidean algorithm would use to compute gcd(X^(N-K), S(X))
+by dividing until the remainder hits 0; here we stop earlier, at the
+first remainder small enough to satisfy deg(sigma) <= (N-K)/2, so
+omega is generally just an intermediate remainder, not that final
+gcd. Return two values, the error evaluator polynomial omega and the
+error locator polynomial sigma."
+  (define (step omega0 omega1 sigma0 sigma1)
+    (receive (q omega) (poly-divmod gf omega0 omega1)
+      (let ((sigma (poly-add gf sigma0 (poly-mul gf q sigma1))))
+        (if (< (* 2 (poly-degree omega)) (- n k))
+            (values omega sigma)
+            (step omega1 omega sigma1 sigma)))))
+  (step (poly-shift (- n k) (list 1)) (poly-normalize syndrome) (list 0) (list 1)))
