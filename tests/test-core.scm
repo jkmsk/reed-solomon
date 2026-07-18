@@ -4,17 +4,21 @@
              (ice-9 receive)
              (reed-solomon gf)
              (reed-solomon poly)
+             (reed-solomon bits)
              (reed-solomon core))
 
 (test-begin "core")
 
-(define g (make-gf #b10011))
+(define poly #b10011)
+(define g (make-gf poly))
+(define m (g 'deg))
+
 (define msg1 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011))
 (define msg2 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101))
 (define msg3 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b0))
-(define cw1 (encode g 15 msg1))
-(define cw2 (encode g 15 msg2))
-(define cw3 (encode g 15 msg3))
+(define cw1 (encode g 15 11 msg1))
+(define cw2 (encode g 15 13 msg2))
+(define cw3 (encode g 15 11 msg3))
 
 ;; list of (n k expected-generator), covering RS(15,11) and RS(15,13).
 (define generator-cases
@@ -36,19 +40,18 @@
                (iota (- n k) 1))))))
  generator-cases)
 
-;; list of (msg expected-codeword), covering a general message and a
+;; list of (msg k expected-codeword), covering a general message and a
 ;; message whose leading (highest-degree) symbol is 0.
 (define encode-cases
-  (list (list msg1
+  (list (list msg1 11
               (list #b1000 #b100 #b110 #b1001 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011))
-        (list (append (drop-right msg1 1) (list 0))
+        (list (append (drop-right msg1 1) (list 0)) 11
               (list #b1001 #b1100 #b1 #b110 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b0))))
 
 (for-each
  (match-lambda
-   ((msg expected)
-    (let ((codeword (encode g 15 msg))
-          (k (length msg)))
+   ((msg k expected)
+    (let ((codeword (encode g 15 k msg)))
       (test-equal (simple-format #f "encode: GF(16) RS(15,~a), concrete codeword" k)
         expected codeword)
       (test-equal (simple-format #f "encode: GF(16) RS(15,~a), codeword has exactly 15 symbols" k)
@@ -58,6 +61,14 @@
       (test-equal (simple-format #f "encode: GF(16) RS(15,~a), the message reappears unchanged in the high-order positions" k)
         msg (list-tail codeword (- 15 k))))))
  encode-cases)
+
+;; encode accepts a MSG shorter than K directly: a short message and
+;; its zero-padded equivalent must produce the exact same codeword.
+(define short-msg (list #b1 #b10 #b11))
+(define padded-msg (append short-msg (make-list (- 11 (length short-msg)) 0)))
+
+(test-equal "encode: GF(16) RS(15,11), a message shorter than K is equivalent to one padded with high-order 0s"
+  (encode g 15 11 padded-msg) (encode g 15 11 short-msg))
 
 ;; list of (message corrupted? n k received expected-syndromes
 ;; expected-omega expected-sigma expected-locations
@@ -120,5 +131,42 @@
 ;; returning a wrong message.
 (test-error "decode: GF(16) RS(15,11), too many errors raises an error"
   #t (decode g 15 11 (poly-add g cw1 (list #b1 #b0 #b0 #b1 #b0 #b0 #b0 #b1))))
+
+(define (bits-of symbols)
+  (flatten (map (lambda (symbol) (integer->bits symbol m)) symbols)))
+
+;; list of (msg n k codeword), covering a general message for two
+;; different (n,k) and a message whose leading (highest-degree)
+;; symbol is 0.
+(define encode-bits-cases
+  (list (list msg1 15 11 cw1)
+        (list msg2 15 13 cw2)
+        (list msg3 15 11 cw3)))
+
+(for-each
+ (match-lambda
+   ((msg n k codeword)
+    (test-equal (simple-format #f "encode-bits: GF(16) RS(~a,~a)" n k)
+      (bits-of codeword) (encode-bits poly n k (bits-of msg)))))
+ encode-bits-cases)
+
+;; list of (n k received message), reusing the same clean and
+;; corrupted scenarios as decode-cases.
+(define decode-bits-cases
+  (list (list 15 11 cw1 msg1)
+        (list 15 13 cw2 msg2)
+        (list 15 11 (poly-add g cw1 (list #b1)) msg1)
+        (list 15 11 (poly-add g cw1 (list #b1 #b0 #b0 #b1)) msg1)
+        (list 15 13 (poly-add g cw2 (poly-shift 2 (list #b1))) msg2)))
+
+(for-each
+ (match-lambda
+   ((n k received message)
+    (test-equal (simple-format #f "decode-bits: GF(16) RS(~a,~a)" n k)
+      (bits-of message) (decode-bits poly n k (bits-of received)))))
+ decode-bits-cases)
+
+(test-error "decode-bits: GF(16) RS(15,11), too many errors raises an error"
+  #t (decode-bits poly 15 11 (bits-of (poly-add g cw1 (list #b1 #b0 #b0 #b1 #b0 #b0 #b0 #b1)))))
 
 (test-end "core")

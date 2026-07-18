@@ -7,47 +7,39 @@
 
 (define-module (reed-solomon bits)
   #:use-module (srfi srfi-1)
-  #:export (split-into group-into flatten flatten2 hamming-distance))
+  #:export (split-into flatten bits->integer integer->bits))
 
-;; split-into/pad : pad size lst -> list of lists
-;; Splits lst into consecutive chunks of length size, padding the last
-;; chunk with pad if the list's length isn't a multiple of size.
-(define (split-into/pad pad size lst)
-  (if (<= size 0)
-      (error "split-into/pad: chunk size must be positive" size))
+(define (split-into/pad fill size lst)
+  "Return LST split into consecutive chunks of length SIZE, padding
+the last chunk with FILL if LST's length isn't a multiple of SIZE."
   (define (pad-to-multiple lst)
     (let ((r (modulo (length lst) size)))
       (if (zero? r)
           lst
-          (append lst (make-list (- size r) pad)))))
+          (append lst (make-list (- size r) fill)))))
+  (when (<= size 0)
+    (error "split-into/pad: chunk size must be positive" size))
   (let loop ((lst (pad-to-multiple lst)))
     (if (null? lst)
         '()
         (cons (take lst size) (loop (drop lst size))))))
 
-;; split-into : size lst -> list of lists
-;; split-into/pad specialized to pad with 0.
 (define (split-into size lst)
+  "Return LST split into consecutive chunks of length SIZE, padding
+the last chunk with 0 if LST's length isn't a multiple of SIZE."
   (split-into/pad 0 size lst))
 
-;; group-into : symbol-size group-size lst -> list of lists of lists
-;; Splits lst into symbols of length symbol-size, then groups those
-;; symbols into blocks of group-size symbols, padding the last block
-;; with padding-symbols if needed.
-(define (group-into symbol-size group-size lst)
-  (let ((symbols (split-into symbol-size lst)))
-    (split-into/pad (make-list symbol-size 0) group-size symbols)))
+(define (flatten lst)
+  "Return LST with one level of nesting removed, concatenating its
+sublists into one."
+  (apply append lst))
 
-;; flatten : list of lists -> list
-;; Removes one level of nesting, concatenating the sublists into one.
-(define (flatten lst) (apply append lst))
+(define (bits->integer bits)
+  "Return the integer represented by BITS, a list of 0s and 1s,
+most-significant bit first."
+  (fold (lambda (bit acc) (+ (* acc 2) bit)) 0 bits))
 
-;; flatten2 : list of lists of lists -> list
-;; Removes two levels of nesting, e.g. the output of group-into.
-(define (flatten2 lst) (flatten (flatten lst)))
-
-;; hamming-distance : lst1 lst2 -> integer
-;; Counts the positions at which lst1 and lst2 differ. If lst1 and lst2
-;; have different lengths, comparison stops at the end of the shorter one.
-(define (hamming-distance lst1 lst2)
-  (fold (lambda (a b d) (if (equal? a b) d (+ d 1))) 0 lst1 lst2))
+(define (integer->bits n size)
+  "Return N as a list of SIZE bits (0s and 1s), most-significant bit
+first."
+  (map (lambda (i) (if (logbit? i n) 1 0)) (iota size (- size 1) -1)))
