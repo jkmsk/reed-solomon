@@ -20,7 +20,7 @@ e.g. #b100011101 stands for X⁸+X⁴+X³+X²+1."
   (let* ((m (- (integer-length p) 1))              ; degree of P
          (q (ash 1 m))                             ; cardinal of Fq
          (n (- q 1))                               ; order of Fq*
-         (exp-table (make-vector (* 2 n) 0))       ; exp-table[i] = exp-table[i mod n] = alpha^i
+         (exp-table (make-vector n 0))             ; exp-table[i mod n] = alpha^i
          (log-table (make-vector q 0)))            ; log-table[alpha^i] = i
 
     (let loop ((i 0) (x 1))
@@ -32,7 +32,6 @@ e.g. #b100011101 stands for X⁸+X⁴+X³+X²+1."
                (next (if (>= next q) (logxor next p) next)))
           (vector-set! log-table x i)
           (vector-set! exp-table i x)
-          (vector-set! exp-table (+ i n) x)
           (loop (+ i 1) next))))
 
     (define deg m)

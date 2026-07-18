@@ -37,7 +37,7 @@
 SCALAR, in the field GF."
   (if (zero? scalar)
       (list 0)
-      (map (lambda (coeff) (gf-mul gf scalar coeff)) u)))
+      (poly-normalize (map (lambda (coeff) (gf-mul gf scalar coeff)) u))))
 
 (define poly-shift
   (case-lambda
@@ -63,10 +63,10 @@ and shift ACC up by one)."
 (define (poly-divmod gf u v)
   "Divide the polynomial U by V over the field GF and return two
 values, the quotient q and the remainder r, such that U = q*V + r
-with deg(r) < deg(V). While deg(U) >= deg(V), cancel U's leading
-term with a matching term of the quotient, subtract that term
-times V from U, and recurse on what's left; each term is added to
-the quotient on the way back up."
+with deg(r) < deg(V). U and V need not be canonical. While
+deg(U) >= deg(V), cancel U's leading term with a matching term of
+the quotient, subtract that term times V from U, and recurse on
+what's left; each term is added to the quotient on the way back up."
   (let ((v (poly-normalize v)))
     (define degree-v (poly-degree v))
     (define lead-coeff-v-inv (gf-inv gf (list-ref v degree-v)))

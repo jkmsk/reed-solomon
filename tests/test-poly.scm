@@ -95,7 +95,7 @@
         (list #b1 (list #b1 #b10 #b11)
               (list #b1 #b10 #b11))
         (list #b11 '()
-              '())
+              (list #b0))
         (list #b0 '()
               (list #b0))
         (list #b11 (list #b1 #b10 #b11)

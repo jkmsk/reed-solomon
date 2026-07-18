@@ -11,7 +11,7 @@
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
   #:use-module (reed-solomon poly)
-  #:export (generator encode syndromes euclid chien-search forney))
+  #:export (generator encode syndromes euclid chien-search forney decode))
 
 (define (generator gf n k)
   "Return the generator polynomial of the RS(N,K) code over the field
@@ -92,3 +92,24 @@ and LOCATIONS is the list of error positions."
            (vector-set! errors loc (gf-mul gf omega-val (gf-inv gf sigma-deriv-val))))))
      locations)
     (vector->list errors)))
+
+(define (decode gf n k received)
+  "Decode the possibly corrupted N-symbol codeword RECEIVED into its
+K-symbol message, over the field GF. Compute the syndromes: if
+they're all 0, RECEIVED has no error and the message is already
+sitting in the high-order positions; otherwise, solve the key
+equation (euclid), locate the errors (chien-search), compute their
+magnitudes (forney), correct RECEIVED, and only then extract the
+message. Raises an error if sigma has no root among the N candidate
+positions, meaning RECEIVED has more errors than this code can
+correct."
+  (let ((syndrome (syndromes gf n k received)))
+    (if (every zero? syndrome)
+        (list-tail received (- n k))
+        (receive (omega sigma) (euclid gf n k syndrome)
+          (let ((locations (chien-search gf n sigma)))
+            (when (null? locations)
+              (error "decode: too many errors to correct, sigma has no root among the candidate positions" received))
+            (let* ((errors (forney gf n omega sigma locations))
+                   (corrected (pad-codeword (poly-add gf received errors) n)))
+              (list-tail corrected (- n k))))))))

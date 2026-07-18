@@ -50,7 +50,7 @@
  exp-log-cases)
 
 ;; list of primitive-poly, one entry per distinct field
-(define poly-cases
+(define distinct-field-cases
   (list #b10011
         #b100011101))
 
@@ -71,7 +71,7 @@
        #t (gf-inv gf #b0))
      (test-error (simple-format #f "an unknown message raises an error, for GF(~a)" (gf 'card))
        #t (gf 'unknown-op))))
- poly-cases)
+ distinct-field-cases)
 
 ;; list of (primitive-poly a b sum product), covering the additive
 ;; identity and multiplicative absorbing element, self-cancelling

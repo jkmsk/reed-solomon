@@ -9,7 +9,12 @@
 (test-begin "core")
 
 (define g (make-gf #b10011))
-(define msg (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011))
+(define msg1 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011))
+(define msg2 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101))
+(define msg3 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b0))
+(define cw1 (encode g 15 msg1))
+(define cw2 (encode g 15 msg2))
+(define cw3 (encode g 15 msg3))
 
 ;; list of (n k expected-generator), covering RS(15,11) and RS(15,13).
 (define generator-cases
@@ -34,9 +39,9 @@
 ;; list of (msg expected-codeword), covering a general message and a
 ;; message whose leading (highest-degree) symbol is 0.
 (define encode-cases
-  (list (list msg
+  (list (list msg1
               (list #b1000 #b100 #b110 #b1001 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011))
-        (list (append (drop-right msg 1) (list 0))
+        (list (append (drop-right msg1 1) (list 0))
               (list #b1001 #b1100 #b1 #b110 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b0))))
 
 (for-each
@@ -54,34 +59,37 @@
         msg (list-tail codeword (- 15 k))))))
  encode-cases)
 
-(define msg2 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101))
-
-;; list of (n k received expected-syndromes expected-omega
-;; expected-sigma expected-locations expected-corrected), covering a
-;; clean codeword for two different (n,k) and three corrupted
-;; codewords.
+;; list of (message corrupted? n k received expected-syndromes
+;; expected-omega expected-sigma expected-locations
+;; expected-corrected), covering a clean codeword for two different
+;; (n,k), two corrupted RS(15,11) codewords, a corrupted RS(15,13)
+;; codeword, and a corrupted codeword whose message has a leading
+;; (highest-degree) symbol of 0.
 (define decode-cases
-  (list (list 15 11 (encode g 15 msg)
+  (list (list msg1 #f 15 11 cw1
               (list #b0 #b0 #b0 #b0) #f #f #f #f)
-        (list 15 13 (encode g 15 msg2)
+        (list msg2 #f 15 13 cw2
               (list #b0 #b0) #f #f #f #f)
-        (list 15 11 (poly-add g (encode g 15 msg) (list #b1))
+        (list msg1 #t 15 11 (poly-add g cw1 (list #b1))
               (list #b1 #b1 #b1 #b1) (list #b1) (list #b1 #b1)
-              (list 0) (encode g 15 msg))
-        (list 15 11 (poly-add g (encode g 15 msg) (poly-add g (list #b1) (poly-shift 3 (list #b1))))
+              (list 0) cw1)
+        (list msg1 #t 15 11 (poly-add g cw1 (list #b1 #b0 #b0 #b1))
               (list #b1001 #b1101 #b1011 #b1110) (list #b1001) (list #b1 #b1001 #b1000)
-              (list 0 3) (encode g 15 msg))
-        (list 15 13 (poly-add g (encode g 15 msg2) (poly-shift 2 (list #b1)))
+              (list 0 3) cw1)
+        (list msg2 #t 15 13 (poly-add g cw2 (poly-shift 2 (list #b1)))
               (list #b100 #b11) (list #b1110) (list #b1010 #b1110)
-              (list 2) (encode g 15 msg2))))
+              (list 2) cw2)
+        (list msg3 #t 15 11 (list #b1000 #b1100 #b1 #b110 #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b0)
+              (list #b1 #b1 #b1 #b1) (list #b1) (list #b1 #b1)
+              (list 0) cw3)))
 
 (for-each
  (match-lambda
-   ((n k received expected-syndromes expected-omega expected-sigma expected-locations expected-corrected)
+   ((message corrupted? n k received expected-syndromes expected-omega expected-sigma expected-locations expected-corrected)
     (let ((syndrome (syndromes g n k received)))
       (test-equal (simple-format #f "syndromes: GF(16) RS(~a,~a), received=~a" n k received)
         expected-syndromes syndrome)
-      (if expected-omega
+      (if corrupted?
           (receive (omega sigma) (euclid g n k syndrome)
             (test-equal (simple-format #f "euclid: GF(16) RS(~a,~a), syndrome=~a, omega=~a" n k syndrome expected-omega)
               expected-omega omega)
@@ -96,11 +104,21 @@
               (test-equal (simple-format #f "chien-search: GF(16) RS(~a,~a), sigma=~a, locations=~a" n k sigma expected-locations)
                 expected-locations locations)
               (let* ((errors (forney g n omega sigma locations))
-                     (corrected (poly-add g received errors)))
+                     (corrected (poly-add g received errors))
+                     (corrected (append corrected (make-list (- n (length corrected)) 0))))
                 (test-equal (simple-format #f "forney: GF(16) RS(~a,~a), corrected codeword matches the original" n k)
                   expected-corrected corrected))))
           (test-assert (simple-format #f "syndromes: GF(16) RS(~a,~a), clean codeword has no error" n k)
-            (every zero? syndrome))))))
+            (every zero? syndrome)))
+      (test-equal (simple-format #f "decode: GF(16) RS(~a,~a), decoded message" n k)
+        message (decode g n k received)))))
  decode-cases)
+
+;; RS(15,11) corrects at most t=(n-k)/2=2 errors; 3 errors is beyond
+;; the code's capacity, so sigma has no root among the candidate
+;; positions and decode must raise an error rather than silently
+;; returning a wrong message.
+(test-error "decode: GF(16) RS(15,11), too many errors raises an error"
+  #t (decode g 15 11 (poly-add g cw1 (list #b1 #b0 #b0 #b1 #b0 #b0 #b0 #b1))))
 
 (test-end "core")
