@@ -57,23 +57,27 @@
 (define msg2 (list #b1 #b10 #b11 #b100 #b101 #b110 #b111 #b1000 #b1001 #b1010 #b1011 #b1100 #b1101))
 
 ;; list of (n k received expected-syndromes expected-omega
-;; expected-sigma), covering a clean codeword for two different
-;; (n,k) and three corrupted codewords.
-(define syndrome-euclid-cases
+;; expected-sigma expected-locations expected-corrected), covering a
+;; clean codeword for two different (n,k) and three corrupted
+;; codewords.
+(define decode-cases
   (list (list 15 11 (encode g 15 msg)
-              (list #b0 #b0 #b0 #b0) #f #f)
+              (list #b0 #b0 #b0 #b0) #f #f #f #f)
         (list 15 13 (encode g 15 msg2)
-              (list #b0 #b0) #f #f)
+              (list #b0 #b0) #f #f #f #f)
         (list 15 11 (poly-add g (encode g 15 msg) (list #b1))
-              (list #b1 #b1 #b1 #b1) (list #b1) (list #b1 #b1))
+              (list #b1 #b1 #b1 #b1) (list #b1) (list #b1 #b1)
+              (list 0) (encode g 15 msg))
         (list 15 11 (poly-add g (encode g 15 msg) (poly-add g (list #b1) (poly-shift 3 (list #b1))))
-              (list #b1001 #b1101 #b1011 #b1110) (list #b1001) (list #b1 #b1001 #b1000))
+              (list #b1001 #b1101 #b1011 #b1110) (list #b1001) (list #b1 #b1001 #b1000)
+              (list 0 3) (encode g 15 msg))
         (list 15 13 (poly-add g (encode g 15 msg2) (poly-shift 2 (list #b1)))
-              (list #b100 #b11) (list #b1110) (list #b1010 #b1110))))
+              (list #b100 #b11) (list #b1110) (list #b1010 #b1110)
+              (list 2) (encode g 15 msg2))))
 
 (for-each
  (match-lambda
-   ((n k received expected-syndromes expected-omega expected-sigma)
+   ((n k received expected-syndromes expected-omega expected-sigma expected-locations expected-corrected)
     (let ((syndrome (syndromes g n k received)))
       (test-equal (simple-format #f "syndromes: GF(16) RS(~a,~a), received=~a" n k received)
         expected-syndromes syndrome)
@@ -87,9 +91,16 @@
               (<= (poly-degree sigma) (quotient (- n k) 2)))
             (test-equal (simple-format #f "euclid: GF(16) RS(~a,~a), key equation omega(X) = sigma(X)*S(X) mod X^(n-k)" n k)
               (poly-normalize omega)
-              (poly-mod g (poly-mul g sigma syndrome) (poly-shift (- n k) (list 1)))))
+              (poly-mod g (poly-mul g sigma syndrome) (poly-shift (- n k) (list 1))))
+            (let ((locations (chien-search g n sigma)))
+              (test-equal (simple-format #f "chien-search: GF(16) RS(~a,~a), sigma=~a, locations=~a" n k sigma expected-locations)
+                expected-locations locations)
+              (let* ((errors (forney g n omega sigma locations))
+                     (corrected (poly-add g received errors)))
+                (test-equal (simple-format #f "forney: GF(16) RS(~a,~a), corrected codeword matches the original" n k)
+                  expected-corrected corrected))))
           (test-assert (simple-format #f "syndromes: GF(16) RS(~a,~a), clean codeword has no error" n k)
             (every zero? syndrome))))))
- syndrome-euclid-cases)
+ decode-cases)
 
 (test-end "core")

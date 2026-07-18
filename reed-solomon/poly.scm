@@ -11,7 +11,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
-  #:export (poly-add poly-scale poly-shift poly-mul poly-divmod poly-mod poly-eval poly-degree poly-normalize))
+  #:export (poly-add poly-scale poly-shift poly-mul poly-divmod poly-mod poly-eval poly-deriv poly-degree poly-normalize))
 
 (define (poly-normalize u)
   "Return U with any superfluous high-order zero coefficients stripped."
@@ -96,3 +96,11 @@ than computing powers of POINT separately, fold U from the right:
 each coefficient C combines with the accumulated evaluation ACC of
 the higher-degree coefficients as C + POINT*ACC."
   (fold-right (lambda (c acc) (gf-add gf c (gf-mul gf point acc))) 0 u))
+
+(define (poly-deriv u)
+  "Return the formal derivative of the polynomial U. Over
+characteristic 2, d(X^i)/dX = i*X^(i-1) collapses to 0 whenever i is
+even, so only U's odd-degree terms survive, shifted down by one
+degree."
+  (let ((cs (cdr (poly-normalize u))))
+    (poly-normalize (map (lambda (c i) (if (odd? i) c 0)) cs (iota (length cs) 1)))))

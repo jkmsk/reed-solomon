@@ -11,7 +11,7 @@
   #:use-module (ice-9 receive)
   #:use-module (reed-solomon gf)
   #:use-module (reed-solomon poly)
-  #:export (generator encode syndromes euclid))
+  #:export (generator encode syndromes euclid chien-search forney))
 
 (define (generator gf n k)
   "Return the generator polynomial of the RS(N,K) code over the field
@@ -67,3 +67,28 @@ error locator polynomial sigma."
             (values omega sigma)
             (step omega1 omega sigma1 sigma)))))
   (step (poly-shift (- n k) (list 1)) (poly-normalize syndrome) (list 0) (list 1)))
+
+(define (chien-search gf n sigma)
+  "Return the list of error positions found by testing every
+candidate position loc from 0 to N-1: SIGMA is built so that if loc
+is an error position, SIGMA(alpha^-loc) = 0."
+  (filter (lambda (loc) (zero? (poly-eval gf sigma (gf-exp gf (- loc))))) (iota n)))
+
+(define (forney gf n omega sigma locations)
+  "Return the error polynomial (N magnitudes, one per codeword
+position, 0 outside LOCATIONS), using Forney's formula: for each
+error position loc in LOCATIONS, the error magnitude is
+OMEGA(alpha^-loc) / SIGMA'(alpha^-loc), where OMEGA is the error
+evaluator polynomial and SIGMA the error locator polynomial,
+and LOCATIONS is the list of error positions."
+  (let ((errors (make-vector n 0))
+        (sigma-deriv (poly-deriv sigma)))
+    (for-each
+     (lambda (loc)
+       (let* ((point (gf-exp gf (- loc)))
+              (omega-val (poly-eval gf omega point))
+              (sigma-deriv-val (poly-eval gf sigma-deriv point)))
+         (unless (zero? sigma-deriv-val)
+           (vector-set! errors loc (gf-mul gf omega-val (gf-inv gf sigma-deriv-val))))))
+     locations)
+    (vector->list errors)))

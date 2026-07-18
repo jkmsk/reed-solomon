@@ -7,23 +7,30 @@
 
 (define g (make-gf #b100011101))
 
-;; list of (args result), covering shift by one and shift by i.
+;; list of (u expected), covering an empty list, an all-zero list of
+;; several superfluous zeros, a low-order zero, several superfluous
+;; high-order zeros, and an already-canonical polynomial.
+(define normalize-cases
+  (list (list '() (list #b0))
+        (list (list #b0) (list #b0))
+        (list (list #b0 #b0 #b0) (list #b0))
+        (list (list #b0 #b1) (list #b0 #b1))
+        (list (list #b1 #b10 #b0 #b0) (list #b1 #b10))
+        (list (list #b1 #b10 #b11) (list #b1 #b10 #b11))))
+
+(for-each
+ (match-lambda
+   ((u expected)
+    (test-equal (simple-format #f "normalize: ~a -> ~a" u expected)
+      expected (poly-normalize u))))
+ normalize-cases)
+
+;; list of (args result), covering shift by one and shift by i on a
+;; general polynomial, plus one case per arity.
 (define shift-cases
   (list (list (list (list #b1 #b10 #b11))
               (list #b0 #b1 #b10 #b11))
         (list (list '())
-              (list #b0))
-        (list (list (list #b0))
-              (list #b0))
-        (list (list 0 '())
-              (list #b0))
-        (list (list 0 (list #b0))
-              (list #b0))
-        (list (list 1 '())
-              (list #b0))
-        (list (list 1 (list #b0))
-              (list #b0))
-        (list (list 2 '())
               (list #b0))
         (list (list 2 (list #b0))
               (list #b0))
@@ -108,8 +115,7 @@
 
 ;; list of (u v quotient remainder), covering deg(u) < deg(v), exact
 ;; division at the same degree, exact division in the general case, a
-;; non-zero remainder, and non-canonical u/v (superfluous high-order
-;; zero coefficients), which poly-divmod must normalize internally.
+;; non-zero remainder, and non-canonical u/v.
 (define divmod-cases
   (list (list (list #b1 #b10) (list #b1 #b10 #b11)
               (list #b0) (list #b1 #b10))
@@ -167,5 +173,29 @@
     (test-equal (simple-format #f "eval matches direct sum: ~a at point=~a" u point)
       (direct-eval u point) (poly-eval g u point))))
  eval-cases)
+
+;; list of (u expected-deriv), covering a general polynomial with a mix
+;; of odd/even-degree terms, a degree drop caused by an even-degree
+;; leading term, a constant, the zero-polynomial, and non-canonical input.
+(define deriv-cases
+  (list (list (list #b1 #b10 #b11 #b100 #b101)
+              (list #b10 #b0 #b100))
+        (list (list #b11 #b101 #b100)
+              (list #b101))
+        (list (list #b111)
+              (list #b0))
+        (list (list #b0)
+              (list #b0))
+        (list '()
+              (list #b0))
+        (list (list #b11 #b101 #b100 #b0 #b0)
+              (list #b101))))
+
+(for-each
+ (match-lambda
+   ((u expected)
+    (test-equal (simple-format #f "deriv: d/dX(~a) = ~a" u expected)
+      expected (poly-deriv u))))
+ deriv-cases)
 
 (test-end "poly")
